@@ -228,7 +228,7 @@ permissions:
   id-token: write  # required for OIDC
 
 steps:
-  - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.66
+  - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.67
     with:
       bella-url: ${{ vars.BELLA_BAXTER_URL }}
       oidc: 'true'
