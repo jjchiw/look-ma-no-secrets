@@ -1,0 +1,51 @@
+name: 🧪 Test Bella Auth (OIDC only)
+
+# Push this to jjchiw/look-ma-no-secrets to quickly validate:
+#   1. The Bella CLI installs
+#   2. bella auth oidc succeeds against the trust domain
+#   3. The issued key is valid (bella whoami)
+#
+# Runs in ~15s — no Terraform, no AWS, no infra changes.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/test-bella-auth.yml"
+
+permissions:
+  id-token: write   # Required for GitHub OIDC token
+  contents: read
+
+jobs:
+  test-auth:
+    name: Test OIDC Exchange
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Bella CLI + OIDC auth
+        uses: Cosmic-Chimps/bella-baxter-setup-action@main
+        with:
+          oidc: true
+        env:
+          BELLA_BAXTER_URL: https://api.bella-baxter.io
+
+      - name: Verify — bella whoami
+        run: bella whoami
+
+      - name: Debug — print OIDC token claims (no secret values)
+        if: failure()
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+        run: |
+          # Fetch raw OIDC token and decode the claims (header + payload, NOT signature)
+          TOKEN=$(curl -sSfL \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            -H "Accept: application/json" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=bella-baxter" \
+            | jq -r '.value')
+
+          echo "=== JWT Claims (for trust domain debugging) ==="
+          echo "$TOKEN" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
