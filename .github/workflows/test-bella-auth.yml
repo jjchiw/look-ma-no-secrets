@@ -12,10 +12,10 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/test-bella-auth.yml"
+      - '.github/workflows/test-bella-auth.yml'
 
 permissions:
-  id-token: write   # Required for GitHub OIDC token
+  id-token: write # Required for GitHub OIDC token
   contents: read
 
 jobs:
@@ -24,6 +24,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ── Pre-flight: decode the OIDC token claims before sending to Bella ──
+      # This lets you compare claims vs trust domain rules without CLI changes.
+      - name: 🔍 Debug — decode OIDC token claims
+        run: |
+          TOKEN=$(curl -sSfL \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            -H "Accept: application/json" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=bella-baxter" \
+            | jq -r '.value')
+
+          echo "=== Raw JWT (copy for local testing with: bella auth oidc --token <TOKEN>) ==="
+          echo "$TOKEN"
+
+          echo ""
+          echo "=== JWT Claims ==="
+          # Decode payload (middle segment), pad base64 if needed
+          PAYLOAD=$(echo "$TOKEN" | cut -d'.' -f2)
+          # Add padding
+          PADDED="${PAYLOAD}$(printf '%0.s=' $((4 - ${#PAYLOAD} % 4)))"
+          echo "$PADDED" | base64 -d 2>/dev/null | jq .
+
+          echo ""
+          echo "=== Trust Domain Check ==="
+          echo "Expected claim: repository = jjchiw/look-ma-no-secrets"
+          echo "Expected claim: ref = refs/heads/main"
+          REPO=$(echo "$PADDED" | base64 -d 2>/dev/null | jq -r '.repository // "NOT FOUND"')
+          REF=$(echo "$PADDED" | base64 -d 2>/dev/null | jq -r '.ref // "NOT FOUND"')
+          echo "Actual   claim: repository = $REPO"
+          echo "Actual   claim: ref = $REF"
+
       - name: Setup Bella CLI + OIDC auth
         uses: Cosmic-Chimps/bella-baxter-setup-action@main
         with:
@@ -33,19 +63,3 @@ jobs:
 
       - name: Verify — bella whoami
         run: bella whoami
-
-      - name: Debug — print OIDC token claims (no secret values)
-        if: failure()
-        env:
-          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-        run: |
-          # Fetch raw OIDC token and decode the claims (header + payload, NOT signature)
-          TOKEN=$(curl -sSfL \
-            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            -H "Accept: application/json" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=bella-baxter" \
-            | jq -r '.value')
-
-          echo "=== JWT Claims (for trust domain debugging) ==="
-          echo "$TOKEN" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .
