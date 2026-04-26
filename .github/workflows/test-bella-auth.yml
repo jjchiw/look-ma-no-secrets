@@ -62,6 +62,7 @@ jobs:
           oidc: true
         env:
           BELLA_BAXTER_URL: https://api.bella-baxter.io
+          BELLA_BAXTER_DEBUG: 1
 
       - name: Verify — bella whoami
         run: bella whoami
