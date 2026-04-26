@@ -12,29 +12,29 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # enables GitHub OIDC JWT for Bella manager token exchange
+  id-token: write # enables GitHub OIDC JWT for Bella manager token exchange
 
 jobs:
   apply:
     name: terraform apply
     runs-on: ubuntu-latest
 
-    environment: production   # optional: require manual approval gate in GitHub settings
+    environment: production # optional: require manual approval gate in GitHub settings
 
     env:
       TF_IN_AUTOMATION: true
 
       # AWS credentials — these can also be stored in Bella (as AWS_ACCESS_KEY_ID /
       # AWS_SECRET_ACCESS_KEY secrets) to achieve zero GitHub secrets entirely.
-      AWS_REGION:            ${{ vars.AWS_REGION || 'us-east-1' }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       # Non-sensitive Terraform variables
-      TF_VAR_bella_baxter_url:    ${{ vars.BELLA_BAXTER_URL }}
+      TF_VAR_bella_baxter_url: ${{ vars.BELLA_BAXTER_URL }}
       TF_VAR_dokploy_admin_email: ${{ vars.DOKPLOY_ADMIN_EMAIL }}
-      TF_VAR_aws_region:          ${{ vars.AWS_REGION || 'us-east-1' }}
-      TF_VAR_project_name:        ${{ vars.PROJECT_NAME || 'lmns' }}
-      TF_VAR_app_name:            ${{ vars.APP_NAME || 'look-ma-no-secrets-demo' }}
-      TF_VAR_ami_id:              ${{ vars.AMI_ID || 'ami-0905a3c97561e0b69' }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      TF_VAR_project_name: ${{ vars.PROJECT_NAME || 'lmns' }}
+      TF_VAR_app_name: ${{ vars.APP_NAME || 'look-ma-no-secrets-demo' }}
+      TF_VAR_ami_id: ${{ vars.AMI_ID || 'ami-0905a3c97561e0b69' }}
       TF_VAR_bella_provider_slug: ${{ vars.BELLA_PROVIDER_SLUG }}
 
       # bella run resolves project+env automatically from GET /api/v1/keys/me —
@@ -44,13 +44,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: Cosmic-Chimps/bella-baxter-setup-action@v1
+      - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.59
         with:
           oidc: 'true'
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.10"
+          terraform_version: '~1.10'
 
       - name: Terraform Init
         working-directory: terraform
