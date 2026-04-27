@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.73
+      - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.74
         with:
           oidc: 'true'
         env:
@@ -63,7 +63,8 @@ jobs:
           bella run -- sh -c '
             terraform init \
               -backend-config="bucket=${TF_STATE_BUCKET}" \
-              -backend-config="key=${TF_STATE_KEY}"
+              -backend-config="key=${TF_STATE_KEY}" \
+              -backend-config="region=${AWS_REGION}"
           '
 
       - name: Terraform Validate
