@@ -34,8 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: guard
 
-    environment: production
-
     env:
       TF_IN_AUTOMATION: true
 

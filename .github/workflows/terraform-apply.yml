@@ -19,8 +19,6 @@ jobs:
     name: terraform apply
     runs-on: ubuntu-latest
 
-    environment: production # optional: require manual approval gate in GitHub settings
-
     env:
       TF_IN_AUTOMATION: true
 
