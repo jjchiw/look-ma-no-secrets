@@ -73,7 +73,7 @@ jobs:
 
       - name: Show outputs
         working-directory: terraform
-        run: terraform output -no-color
+        run: bella run -- sh -c 'terraform output -no-color'
 
   notify:
     runs-on: ubuntu-latest
