@@ -244,7 +244,7 @@ resource "aws_subnet" "private_b" {
 
 resource "aws_security_group" "dokploy" {
   name        = "${var.app_name}-dokploy-sg"
-  description = "EC2 app host — SSH, HTTP/S, app ports"
+  description = "EC2 app host - SSH, HTTP/S, app ports"
   vpc_id      = aws_vpc.main.id
 
   ingress {
