@@ -1,4 +1,4 @@
-=#!/bin/bash
+#!/bin/bash
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -9,11 +9,10 @@ set -euo pipefail
 #   bella_project, bella_env, app_repo_url, app_repo_branch
 #
 # ⚠️  ESCAPING RULES:
-#   - ${var}  → Terraform template interpolation (renders to the value)
+#   - $${var} → Terraform template interpolation (renders to the value; use $${name} in template)
 #   - $VAR    → plain shell variable (Terraform passes through untouched)
 #   - $(cmd)  → shell command substitution (Terraform passes through untouched)
-#   - DO NOT use $$ — it is NOT rendered to $ by templatefile(); it stays $$
-#     and bash expands $$ as the current PID.
+#   - DO NOT use $$ outside of $${...} — bash expands $$ as the current PID.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Terraform-injected values (resolved at plan/apply time) ──────────────────
