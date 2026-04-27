@@ -44,9 +44,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.72
+      - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.73
         with:
           oidc: 'true'
+        env:
           BELLA_BAXTER_URL: https://api.bella-baxter.io
           BELLA_BAXTER_DEBUG: '1'
           BELLA_BAXTER_TENANT: ${{ vars.BELLA_BAXTER_TENANT }}

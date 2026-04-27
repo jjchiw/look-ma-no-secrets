@@ -228,10 +228,16 @@ permissions:
   id-token: write  # required for OIDC
 
 steps:
-  - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.72
+  - uses: Cosmic-Chimps/bella-baxter-setup-action@v0.1.1-preview.73
     with:
       bella-url: ${{ vars.BELLA_BAXTER_URL }}
       oidc: 'true'
+    env:
+          BELLA_BAXTER_URL: https://api.bella-baxter.io
+          BELLA_BAXTER_DEBUG: '1'
+          BELLA_BAXTER_TENANT: ${{ vars.BELLA_BAXTER_TENANT }}
+          BELLA_BAXTER_PROJECT: ${{ vars.BELLA_BAXTER_PROJECT }}
+          BELLA_BAXTER_ENV: ${{ vars.BELLA_BAXTER_ENV }}
 ```
 
 That's it. What happens under the hood:
