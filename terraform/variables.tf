@@ -33,7 +33,7 @@ variable "allowed_ssh_cidr" {
 variable "app_repo_url" {
   description = "HTTPS URL of the GitHub repo containing the demo app"
   type        = string
-  default     = "https://github.com/cosmic-chimps/bella-baxter"
+  default     = "https://github.com/jjchiw/look-ma-no-secrets"
 }
 
 variable "app_repo_branch" {
