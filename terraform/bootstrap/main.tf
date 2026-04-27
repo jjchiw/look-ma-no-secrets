@@ -374,7 +374,7 @@ resource "aws_instance" "dokploy" {
   ami                    = var.ami_id
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.ssh.id]
+  vpc_security_group_ids = [aws_security_group.dokploy.id]
 
   user_data = <<-EOF
     #!/bin/bash
@@ -434,7 +434,7 @@ resource "null_resource" "deploy_app" {
 
   connection {
     type        = "ssh"
-    host        = aws_instance.dokploy.public_ip
+    host        = aws_eip.dokploy.public_ip
     user        = "ubuntu"
     private_key = tls_private_key.terraform_provisioner.private_key_openssh
     certificate = data.bella_ssh_signed_certificate.terraform_provisioner.signed_key
