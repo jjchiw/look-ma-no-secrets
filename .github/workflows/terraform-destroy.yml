@@ -83,7 +83,7 @@ jobs:
 
       - name: Terraform Destroy
         working-directory: terraform
-        run: bella run -- terraform destroy -auto-approve -no-color
+        run: bella run -- sh -c 'terraform destroy -auto-approve -no-color'
 
   notify:
     runs-on: ubuntu-latest

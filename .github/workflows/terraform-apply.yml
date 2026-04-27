@@ -68,7 +68,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: terraform
-        run: bella run -- terraform apply -auto-approve -no-color
+        run: bella run -- sh -c 'terraform apply -auto-approve -no-color'
 
       - name: Show outputs
         working-directory: terraform
