@@ -7,7 +7,7 @@ terraform {
     }
     bella = {
       source  = "cosmic-chimps/bella-baxter"
-      version = "= 0.1.1-preview.77"
+      version = "= 0.1.1-preview.74"
     }
     random = {
       source  = "hashicorp/random"
@@ -438,11 +438,14 @@ resource "null_resource" "deploy_app" {
     user        = "ubuntu"
     private_key = tls_private_key.terraform_provisioner.private_key_openssh
     certificate = data.bella_ssh_signed_certificate.terraform_provisioner.signed_key
-    timeout     = "5m"
+    timeout     = "10m"
   }
 
   provisioner "remote-exec" {
     inline = [
+      # Wait for cloud-init to finish writing the trusted CA keys file and
+      # reloading sshd. Without this the cert auth can fail on first boot.
+      "cloud-init status --wait 2>/dev/null || true",
       "echo 'Connected via Bella SSH certificate ✓'",
       "whoami",
       "hostname",
