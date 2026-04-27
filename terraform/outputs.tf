@@ -63,13 +63,18 @@ output "bella_secrets_created" {
 
 # ─── SSH ──────────────────────────────────────────────────────────────────────
 
+output "bella_ssh_sign_command" {
+  description = "Step 1: Sign your personal SSH key via Bella (valid 8h)"
+  value       = "bella ssh sign --role ops-team --project ${var.bella_project} --env ${var.bella_env}"
+}
+
 output "ssh_connect_command" {
-  description = "Sign your personal key with Bella then SSH in"
+  description = "Step 2: SSH in after signing (your key is now trusted by the instance)"
   value       = "ssh ubuntu@${aws_eip.dokploy.public_ip}"
 }
 
 output "quick_ssh_command" {
-  description = "SSH using the Terraform-generated key (no personal key needed)"
+  description = "SSH using the Terraform-generated key (no personal key needed, for debugging)"
   value       = "ssh -i ${path.module}/.terraform-ssh-key ubuntu@${aws_instance.dokploy.public_ip}"
 }
 
