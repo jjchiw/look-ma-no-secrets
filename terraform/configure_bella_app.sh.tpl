@@ -38,14 +38,14 @@ sudo npm install -g pm2
 # Use GitHub's /releases/latest/download/ redirect — no version lookup needed.
 echo ">>> Installing Bella CLI (latest)..."
 curl -fsSL \
-  "https://github.com/Cosmic-Chimps/bella-baxter/releases/latest/download/cli-linux-x64" \
+  "https://github.com/Cosmic-Chimps/bella-baxter-cli/releases/latest/download/cli-linux-x64" \
   -o /tmp/bella
 sudo install -m 755 /tmp/bella /usr/local/bin/bella
 echo ">>> Bella: $(bella --version)"
 
 # ── 4. Clone repo ─────────────────────────────────────────────────────────────
 echo ">>> Cloning $APP_REPO_URL @ $APP_REPO_BRANCH..."
-git clone --branch "$APP_REPO_BRANCH" --depth 1 "$APP_REPO_URL" "$APP_DIR"
+git clone --branch "$APP_REPO_BRANCH" --depth 1
 
 # ── 5. Install dependencies ───────────────────────────────────────────────────
 echo ">>> npm install — app-simple (bella run, no ZKE)..."
