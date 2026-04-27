@@ -430,6 +430,8 @@ resource "null_resource" "deploy_app" {
     # Redeploy if Bella secrets change
     db_secret_id  = bella_secret.database_url.id
     pwd_secret_id = bella_secret.rds_password.id
+    # Redeploy if the provisioning script changes
+    script_hash = sha1(file("${path.module}/configure_bella_app.sh.tpl"))
   }
 
   connection {
