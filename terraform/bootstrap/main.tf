@@ -7,7 +7,7 @@ terraform {
     }
     bella = {
       source  = "cosmic-chimps/bella-baxter"
-      version = "= 0.1.1-preview.74"
+      version = "= 0.1.1-preview.77"
     }
     random = {
       source  = "hashicorp/random"
@@ -24,6 +24,10 @@ terraform {
     null = {
       source  = "hashicorp/null"
       version = "~> 3.0"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.11"
     }
   }
 
@@ -411,14 +415,21 @@ resource "aws_eip" "dokploy" {
   tags     = { Name = "${var.app_name}-eip", Project = var.app_name }
 }
 
+# Wait for cloud-init to finish setting up TrustedUserCAKeys + sshd restart
+# before the null_resource tries to connect with a Bella-CA-signed certificate.
+resource "time_sleep" "wait_for_cloud_init" {
+  depends_on      = [aws_eip.dokploy]
+  create_duration = "90s"
+}
+
 # ────────────────────────────────────────────────────────────────────────────
-# Deploy the demo app via Dokploy API
+# Deploy the demo app
 # Runs after RDS is up + Bella secrets are stored
 # ────────────────────────────────────────────────────────────────────────────
 
 resource "null_resource" "deploy_app" {
   depends_on = [
-    aws_eip.dokploy,
+    time_sleep.wait_for_cloud_init,
     bella_secret.database_url,
     bella_secret.rds_password,
   ]
