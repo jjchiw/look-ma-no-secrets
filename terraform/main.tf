@@ -7,7 +7,7 @@ terraform {
     }
     bella = {
       source  = "Cosmic-Chimps/bella-baxter"
-      version = "~> 0.1.1-preview.74"
+      version = "= 0.1.1-preview.74"
     }
     random = {
       source  = "hashicorp/random"
