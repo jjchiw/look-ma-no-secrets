@@ -7,7 +7,7 @@ set -euo pipefail
 # Terraform-injected variables (filled in by templatefile()):
 #   bella_baxter_url, bella_app_api_key, bella_app_private_key
 #   bella_project, bella_env, app_repo_url, app_repo_branch
-#.  bump
+#
 # ⚠️  ESCAPING RULES:
 #   - $${var} → Terraform template interpolation (renders to the value; use $${name} in template)
 #   - $VAR    → plain shell variable (Terraform passes through untouched)
@@ -43,6 +43,16 @@ curl -fsSL \
 sudo install -m 755 /tmp/bella /usr/local/bin/bella
 echo ">>> Bella: $(bella --version)"
 
+# ── 3b. Bella ZKE setup ───────────────────────────────────────────────────────
+# Generates a per-device P-256 keypair for zero-knowledge encryption.
+# Skipped if a keypair already exists (re-deploys on the same instance reuse the same key).
+echo ">>> Setting up Bella ZKE keypair..."
+BELLA_BAXTER_API_KEY="$BELLA_APP_API_KEY" \
+  BELLA_BAXTER_URL="$BELLA_BAXTER_URL" \
+  bella auth setup \
+  || echo ">>> ZKE keypair already exists, reusing."
+echo ">>> ZKE keypair ready."
+
 # ── 4. Clone repo ─────────────────────────────────────────────────────────────
 echo ">>> Cloning $APP_REPO_URL @ $APP_REPO_BRANCH..."
 git clone --branch "$APP_REPO_BRANCH" --depth 1 "$APP_REPO_URL" "$APP_DIR"
@@ -72,6 +82,7 @@ module.exports = {
         NODE_ENV:             'production',
         PORT:                 '3001',
         BELLA_BAXTER_API_KEY: '$BELLA_APP_API_KEY',
+        DB_SSL:               'true',
       },
     },
     {
@@ -82,9 +93,10 @@ module.exports = {
       restart_delay: 5000,
       max_restarts: 10,
       env: {
-        NODE_ENV:                 'production',
-        PORT:                     '3002',
-        BELLA_BAXTER_API_KEY:     '$BELLA_APP_API_KEY',
+        NODE_ENV:             'production',
+        PORT:                 '3002',
+        BELLA_BAXTER_API_KEY: '$BELLA_APP_API_KEY',
+        DB_SSL:               'true',
       },
     },
   ],

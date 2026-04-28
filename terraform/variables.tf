@@ -1,4 +1,4 @@
-variable "aws_region" {
+=variable "aws_region" {
   description = "AWS region to deploy into"
   type        = string
   default     = "us-east-1"
@@ -85,13 +85,6 @@ variable "bella_app_api_key" {
   description = "Long-lived Bella Baxter API key for the EC2 docker app (injected as BELLA_BAXTER_API_KEY)"
   type        = string
   sensitive   = true
-}
-
-variable "bella_app_private_key" {
-  description = "ZKE private key for the EC2 docker app (injected as BELLA_BAXTER_PRIVATE_KEY). Generate with: bella auth setup"
-  type        = string
-  sensitive   = true
-  default     = ""
 }
 
 variable "bella_provider_slug" {

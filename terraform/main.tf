@@ -467,13 +467,12 @@ resource "null_resource" "deploy_app" {
 
   provisioner "file" {
     content = templatefile("${path.module}/configure_bella_app.sh.tpl", {
-      app_repo_url          = var.app_repo_url
-      app_repo_branch       = var.app_repo_branch
-      bella_baxter_url      = var.bella_baxter_url
-      bella_app_api_key     = var.bella_app_api_key
-      bella_app_private_key = var.bella_app_private_key
-      bella_project         = var.bella_project
-      bella_env             = var.bella_env
+      app_repo_url      = var.app_repo_url
+      app_repo_branch   = var.app_repo_branch
+      bella_baxter_url  = var.bella_baxter_url
+      bella_app_api_key = var.bella_app_api_key
+      bella_project     = var.bella_project
+      bella_env         = var.bella_env
     })
     destination = "/home/ubuntu/configure_bella_app.sh"
   }

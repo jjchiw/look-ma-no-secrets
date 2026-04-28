@@ -228,16 +228,10 @@ permissions:
   id-token: write  # required for OIDC
 
 steps:
-  - uses: Cosmic-Chimps/bella-baxter-setup-action@main
+  - uses: Cosmic-Chimps/bella-baxter-setup-action@v1
     with:
       bella-url: ${{ vars.BELLA_BAXTER_URL }}
       oidc: 'true'
-    env:
-          BELLA_BAXTER_URL: https://api.bella-baxter.io
-          BELLA_BAXTER_DEBUG: '1'
-          BELLA_BAXTER_TENANT: ${{ vars.BELLA_BAXTER_TENANT }}
-          BELLA_BAXTER_PROJECT: ${{ vars.BELLA_BAXTER_PROJECT }}
-          BELLA_BAXTER_ENV: ${{ vars.BELLA_BAXTER_ENV }}
 ```
 
 That's it. What happens under the hood:
@@ -294,7 +288,6 @@ so Terraform, AWS CLI, and the shell all see them automatically.
 | `TF_STATE_KEY` | S3 object key for the state file (e.g. `lmns/terraform.tfstate`) |
 | `TF_VAR_dokploy_admin_password` | Dokploy admin password |
 | `TF_VAR_bella_app_api_key` | Long-lived Bella API key for the EC2 container |
-| `TF_VAR_bella_app_private_key` | ZKE private key (optional, for SDK app) |
 
 The `terraform init` step uses a `sh -c` wrapper so the shell expands `${TF_STATE_BUCKET}` and
 `${TF_STATE_KEY}` **after** `bella run` has injected them — not at GitHub Actions parse time:
