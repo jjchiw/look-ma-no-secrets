@@ -1,492 +1,80 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# bootstrap/main.tf
+#
+# ONE-TIME SETUP — run this manually (once, locally) to create the S3 bucket
+# that holds the remote Terraform state for the main look-ma-no-secrets config.
+#
+# This config intentionally uses local state (backend "local") to avoid the
+# chicken-and-egg problem of needing a bucket before you can create the bucket.
+#
+# Usage:
+#   cd terraform/bootstrap
+#   terraform init
+#   terraform apply
+#   # Note the bucket_name output → set it as TF_STATE_BUCKET in GitHub Secrets
+#
+# After this runs once, never destroy it (prevent_destroy = true).
+# ─────────────────────────────────────────────────────────────────────────────
+
 terraform {
   required_version = ">= 1.3.0"
+
+  # Intentionally local state — this is a one-time bootstrap config.
+  # Do NOT add an S3 backend here.
+  backend "local" {}
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
-    bella = {
-      source  = "cosmic-chimps/bella-baxter"
-      version = "= 0.1.1-preview.77"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.6"
-    }
-    tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.0"
-    }
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.0"
-    }
-    null = {
-      source  = "hashicorp/null"
-      version = "~> 3.0"
-    }
-    time = {
-      source  = "hashicorp/time"
-      version = "~> 0.11"
-    }
   }
-
-  # Remote state — used by GitHub Actions (CI).
-  # For local development, override with a backend_override.tf (gitignored):
-  #
-  #   terraform {
-  #     backend "local" {}
-  #   }
-  #
-  # Or run: terraform init -reconfigure -backend=false
-  backend "s3" {
-    # Bucket, key, and region are passed at init time via -backend-config:
-    #   TF_CLI_ARGS_init="-backend-config=bucket=my-tf-state -backend-config=key=lmns/terraform.tfstate -backend-config=region=eu-west-1"
-    # In CI these are set from GitHub vars (TF_STATE_BUCKET, TF_STATE_KEY, AWS_REGION).
-    encrypt      = true
-    use_lockfile = true # native S3 state locking (Terraform ≥ 1.10, no DynamoDB needed)
-  }
-}
-
-locals {
-  retry = 2
 }
 
 provider "aws" {
   region = var.aws_region
 }
 
-provider "bella" {
-  baxter_url = var.bella_baxter_url
-  # api_key intentionally omitted — set via BELLA_API_KEY env var (OIDC exchange in CI)
-  app_name = var.app_name
-  # private_key intentionally omitted — set via BELLA_BAXTER_PRIVATE_KEY env var
-}
+# ─── S3 State Bucket ─────────────────────────────────────────────────────────
 
-# ────────────────────────────────────────────────────────────────────────────
-# Secrets — generated here, stored in Bella (never in tfvars or config files)
-# ────────────────────────────────────────────────────────────────────────────
-
-resource "random_password" "rds" {
-  length  = 32
-  special = false
-}
-
-locals {
-  db_password  = random_password.rds.result
-  database_url = "postgresql://${var.db_username}:${random_password.rds.result}@${aws_db_instance.app.address}:5432/${var.db_name}?sslmode=require"
-
-  # Compute deterministic sslip.io domains from the Elastic IP.
-  # These are registered in Dokploy via domain.create so Traefik routes them.
-  ip_dashed = replace(aws_eip.dokploy.public_ip, ".", "-")
-}
-
-# Store RDS password in Bella Baxter
-resource "bella_secret" "rds_password" {
-  provider_slug = var.bella_provider_slug
-  key           = "RDS_PASSWORD"
-  value         = local.db_password
-  description   = "RDS master password - managed by Terraform"
-}
-
-# Store full DATABASE_URL in Bella Baxter
-# The app reads this via `bella sdk run --` — it never appears in docker-compose.yml
-resource "bella_secret" "database_url" {
-  provider_slug = var.bella_provider_slug
-  key           = "DATABASE_URL"
-  value         = local.database_url
-  description   = "Full PostgreSQL connection string - managed by Terraform"
-
-  depends_on = [aws_db_instance.app]
-}
-
-# ── Step 1: Bella SSH — declare the role ────────────────────────────────────
-#
-# bella_ssh_role creates a named role in Bella Baxter's SSH CA.
-# The role controls which Unix usernames certificates may target and how
-# long they stay valid. A single role can be shared by many team members.
-
-resource "bella_ssh_role" "ops" {
-  name          = "ops-team"
-  allowed_users = var.ssh_allowed_users
-  default_ttl   = "8h"
-  max_ttl       = "24h"
-}
-
-# ── Step 2: Bella SSH — read the CA public key ───────────────────────────────
-#
-# bella_ssh_ca_public_key fetches the CA public key for this project/env.
-# We write it to the EC2 instance via user_data so that sshd trusts
-# any certificate signed by Bella's CA.
-
-data "bella_ssh_ca_public_key" "this" {
-  # CA key is always available once SSH is configured on the environment
-  depends_on = [bella_ssh_role.ops]
-}
-
-
-# ── Step 3: Bella SSH — sign a Terraform-generated key for provisioning ──────
-#
-# During `terraform apply` we generate a temporary key pair so that
-# Terraform's "connection" block can SSH in to run provisioners.
-# The private key stays in Terraform state; the signed certificate is
-# short-lived (1h) and scoped to the "ubuntu" user.
-#
-# In normal day-to-day use, operators sign THEIR OWN public key via:
-#   bella ssh sign --project my-project --env production --role ops-team
-# and then SSH directly — no Terraform involvement needed.
-
-resource "tls_private_key" "terraform_provisioner" {
-  algorithm = "ED25519"
-}
-
-data "bella_ssh_signed_certificate" "terraform_provisioner" {
-  role_name        = bella_ssh_role.ops.name
-  public_key       = tls_private_key.terraform_provisioner.public_key_openssh
-  valid_principals = "ubuntu"
-  ttl              = "1h"
-}
-
-
-# Write the signed certificate next to the private key so openssh can find it.
-# The file name MUST be <private_key_file>-cert.pub for OpenSSH auto-detection.
-resource "local_sensitive_file" "terraform_cert" {
-  filename        = "${path.module}/.terraform-ssh-cert.pub"
-  content         = data.bella_ssh_signed_certificate.terraform_provisioner.signed_key
-  file_permission = "0600"
-}
-
-# Write the provisioner private key to disk so operators can SSH without needing
-# their own key pair. Use: ssh -i .terraform-ssh-key ubuntu@<ip>
-# (OpenSSH auto-loads .terraform-ssh-cert.pub because of the matching name)
-resource "local_sensitive_file" "terraform_private_key" {
-  filename        = "${path.module}/.terraform-ssh-key"
-  content         = tls_private_key.terraform_provisioner.private_key_openssh
-  file_permission = "0600"
-}
-
-
-# ────────────────────────────────────────────────────────────────────────────
-# VPC & Networking
-# ────────────────────────────────────────────────────────────────────────────
-
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
-  tags = { Name = "${var.app_name}-vpc", Project = var.app_name }
-}
-
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-  tags   = { Name = "${var.app_name}-igw", Project = var.app_name }
-}
-
-# Public subnet — Dokploy EC2
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = true
-  tags                    = { Name = "${var.app_name}-public", Project = var.app_name }
-}
-
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
-  }
-  tags = { Name = "${var.app_name}-public-rt", Project = var.app_name }
-}
-
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
-}
-
-# Allow SSH inbound only — no hardcoded key pairs needed.
-resource "aws_security_group" "ssh" {
-  name        = "bella-ssh-example"
-  description = "Allow inbound SSH (CA-cert-only)"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "bella-ssh-example" }
-}
-
-
-# Private subnets — RDS (needs two AZs for subnet group)
-resource "aws_subnet" "private_a" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.10.0/24"
-  availability_zone = "${var.aws_region}a"
-  tags              = { Name = "${var.app_name}-private-a", Project = var.app_name }
-}
-
-resource "aws_subnet" "private_b" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.11.0/24"
-  availability_zone = "${var.aws_region}b"
-  tags              = { Name = "${var.app_name}-private-b", Project = var.app_name }
-}
-
-# ────────────────────────────────────────────────────────────────────────────
-# Security Groups
-# ────────────────────────────────────────────────────────────────────────────
-
-resource "aws_security_group" "dokploy" {
-  name        = "${var.app_name}-dokploy-sg"
-  description = "EC2 app host - SSH, HTTP/S, app ports"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "SSH"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_ssh_cidr
-  }
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    description = "lmns-simple app (bella run, no ZKE)"
-    from_port   = 3001
-    to_port     = 3001
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    description = "lmns-sdk app (bella sdk run + ZKE)"
-    from_port   = 3002
-    to_port     = 3002
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.app_name}-dokploy-sg", Project = var.app_name }
-}
-
-resource "aws_security_group" "rds" {
-  name        = "${var.app_name}-rds-sg"
-  description = "RDS - only reachable from EC2"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description     = "PostgreSQL from Dokploy"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.dokploy.id]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.app_name}-rds-sg", Project = var.app_name }
-}
-
-# ────────────────────────────────────────────────────────────────────────────
-# RDS PostgreSQL (private subnet — NOT publicly accessible)
-# ────────────────────────────────────────────────────────────────────────────
-
-resource "aws_db_subnet_group" "main" {
-  name       = "${var.app_name}-db-subnet-group"
-  subnet_ids = [aws_subnet.private_a.id, aws_subnet.private_b.id]
-  tags       = { Name = "${var.app_name}-db-subnet-group", Project = var.app_name }
-}
-
-resource "aws_db_instance" "app" {
-  identifier        = "${var.app_name}-db"
-  engine            = "postgres"
-  engine_version    = "16"
-  instance_class    = var.db_instance_class
-  allocated_storage = 20
-  storage_type      = "gp3"
-  storage_encrypted = true
-
-  db_name  = var.db_name
-  username = var.db_username
-  password = local.db_password
-
-  db_subnet_group_name   = aws_db_subnet_group.main.name
-  vpc_security_group_ids = [aws_security_group.rds.id]
-  publicly_accessible    = false
-
-  skip_final_snapshot = true
-  deletion_protection = false
-
-  tags = { Name = "${var.app_name}-db", Project = var.app_name }
-}
-
-# ────────────────────────────────────────────────────────────────────────────
-# AMI — Latest Ubuntu 22.04 LTS
-# ────────────────────────────────────────────────────────────────────────────
-
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
-# ────────────────────────────────────────────────────────────────────────────
-# EC2 Instance — Dokploy host
-# ────────────────────────────────────────────────────────────────────────────
-
-resource "aws_instance" "dokploy" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.dokploy.id]
-
-  user_data = <<-EOF
-    #!/bin/bash
-    set -euo pipefail
-
-    # ── Trust Bella's SSH CA ──────────────────────────────────────────────────
-    mkdir -p /etc/ssh
-    cat > /etc/ssh/bella_ca.pub <<'CAKEY'
-    ${data.bella_ssh_ca_public_key.this.ca_public_key}
-    CAKEY
-
-    # Configure sshd to trust Bella CA certificates
-    cat >> /etc/ssh/sshd_config <<'SSHD'
-
-    # Bella Baxter SSH CA — managed by Terraform
-    TrustedUserCAKeys /etc/ssh/bella_ca.pub
-    PasswordAuthentication no
-    PermitRootLogin no
-    SSHD
-
-    systemctl restart sshd
-    echo "Bella SSH CA configured ✓"
-  EOF
+resource "aws_s3_bucket" "tf_state" {
+  bucket = var.bucket_name
 
   tags = {
-    Name      = "bella-ssh-example"
-    ManagedBy = "terraform"
+    Name        = var.bucket_name
+    ManagedBy   = "terraform-bootstrap"
+    Project     = "look-ma-no-secrets"
+    Description = "Terraform remote state for look-ma-no-secrets demo"
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
-resource "aws_eip" "dokploy" {
-  instance = aws_instance.dokploy.id
-  domain   = "vpc"
-  tags     = { Name = "${var.app_name}-eip", Project = var.app_name }
+resource "aws_s3_bucket_versioning" "tf_state" {
+  bucket = aws_s3_bucket.tf_state.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
-# Wait for cloud-init to finish setting up TrustedUserCAKeys + sshd restart
-# before the null_resource tries to connect with a Bella-CA-signed certificate.
-resource "time_sleep" "wait_for_cloud_init" {
-  depends_on      = [aws_eip.dokploy]
-  create_duration = "90s"
+resource "aws_s3_bucket_server_side_encryption_configuration" "tf_state" {
+  bucket = aws_s3_bucket.tf_state.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
 }
 
-# ────────────────────────────────────────────────────────────────────────────
-# Deploy the demo app
-# Runs after RDS is up + Bella secrets are stored
-# ────────────────────────────────────────────────────────────────────────────
+resource "aws_s3_bucket_public_access_block" "tf_state" {
+  bucket = aws_s3_bucket.tf_state.id
 
-resource "null_resource" "deploy_app" {
-  depends_on = [
-    time_sleep.wait_for_cloud_init,
-    bella_secret.database_url,
-    bella_secret.rds_password,
-  ]
-
-  triggers = {
-    instance_id = aws_instance.dokploy.id
-    repo        = var.app_repo_url
-    branch      = var.app_repo_branch
-    # Redeploy if Bella secrets change
-    db_secret_id  = bella_secret.database_url.id
-    pwd_secret_id = bella_secret.rds_password.id
-    # Redeploy if the provisioning script changes
-    script_hash = sha1(file("${path.module}/configure_bella_app.sh.tpl"))
-    retry       = local.retry
-  }
-
-  connection {
-    type        = "ssh"
-    host        = aws_eip.dokploy.public_ip
-    user        = "ubuntu"
-    private_key = tls_private_key.terraform_provisioner.private_key_openssh
-    certificate = data.bella_ssh_signed_certificate.terraform_provisioner.signed_key
-    timeout     = "10m"
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      # Wait for cloud-init to finish writing the trusted CA keys file and
-      # reloading sshd. Without this the cert auth can fail on first boot.
-      "cloud-init status --wait 2>/dev/null || true",
-      "echo 'Connected via Bella SSH certificate ✓'",
-      "whoami",
-      "hostname",
-    ]
-  }
-
-  provisioner "file" {
-    content = templatefile("${path.module}/configure_bella_app.sh.tpl", {
-      app_repo_url          = var.app_repo_url
-      app_repo_branch       = var.app_repo_branch
-      bella_baxter_url      = var.bella_baxter_url
-      bella_app_api_key     = var.bella_app_api_key
-      bella_app_private_key = var.bella_app_private_key
-      bella_project         = var.bella_project
-      bella_env             = var.bella_env
-    })
-    destination = "/home/ubuntu/configure_bella_app.sh"
-  }
-
-  provisioner "remote-exec" {
-    inline = [
-      "chmod +x /home/ubuntu/configure_bella_app.sh",
-      "/home/ubuntu/configure_bella_app.sh 2>&1 | tee /home/ubuntu/configure_bella_app.log",
-    ]
-  }
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }

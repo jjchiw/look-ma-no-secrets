@@ -45,16 +45,16 @@ echo ">>> Bella: $(bella --version)"
 
 # ── 4. Clone repo ─────────────────────────────────────────────────────────────
 echo ">>> Cloning $APP_REPO_URL @ $APP_REPO_BRANCH..."
-git clone --branch "$APP_REPO_BRANCH" --depth 1
+git clone --branch "$APP_REPO_BRANCH" --depth 1 "$APP_REPO_URL" "$APP_DIR"
 
 # ── 5. Install dependencies ───────────────────────────────────────────────────
 echo ">>> npm install — app-simple (bella run, no ZKE)..."
 npm install --omit=dev \
-  --prefix "$APP_DIR/apps/demos/look-ma-no-secrets/app-simple"
+  --prefix "$APP_DIR/app-simple"
 
 echo ">>> npm install — app (bella sdk run + ZKE)..."
 npm install --omit=dev \
-  --prefix "$APP_DIR/apps/demos/look-ma-no-secrets/app"
+  --prefix "$APP_DIR/app"
 
 # ── 6. pm2 ecosystem file ─────────────────────────────────────────────────────
 # Use an unquoted heredoc so the shell expands $VAR → actual values at write time.
@@ -65,7 +65,7 @@ module.exports = {
       name: 'lmns-simple',
       script: '/usr/local/bin/bella',
       args: 'run -- node server.js',
-      cwd: '$APP_DIR/apps/demos/look-ma-no-secrets/app-simple',
+      cwd: '$APP_DIR/app-simple',
       restart_delay: 5000,
       max_restarts: 10,
       env: {
@@ -78,7 +78,7 @@ module.exports = {
       name: 'lmns-sdk',
       script: '/usr/local/bin/bella',
       args: 'sdk run -- node server.js',
-      cwd: '$APP_DIR/apps/demos/look-ma-no-secrets/app',
+      cwd: '$APP_DIR/app',
       restart_delay: 5000,
       max_restarts: 10,
       env: {
