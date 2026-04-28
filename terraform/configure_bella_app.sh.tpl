@@ -7,7 +7,7 @@ set -euo pipefail
 # Terraform-injected variables (filled in by templatefile()):
 #   bella_baxter_url, bella_app_api_key, bella_app_private_key
 #   bella_project, bella_env, app_repo_url, app_repo_branch
-#
+#.  bump
 # ⚠️  ESCAPING RULES:
 #   - $${var} → Terraform template interpolation (renders to the value; use $${name} in template)
 #   - $VAR    → plain shell variable (Terraform passes through untouched)
