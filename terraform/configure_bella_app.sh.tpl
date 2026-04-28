@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
+# bump.sh  —  A script to configure the demo app on the EC2 instance.
 # ─────────────────────────────────────────────────────────────────────────────
 # configure_bella_app.sh.tpl  —  uploaded + executed by Terraform null_resource
 #
