@@ -49,7 +49,7 @@ terraform {
 }
 
 locals {
-  retry = 1
+  retry = 2
 }
 
 provider "aws" {
