@@ -48,6 +48,10 @@ terraform {
   }
 }
 
+locals {
+  retry = 1
+}
+
 provider "aws" {
   region = var.aws_region
 }
@@ -443,6 +447,7 @@ resource "null_resource" "deploy_app" {
     pwd_secret_id = bella_secret.rds_password.id
     # Redeploy if the provisioning script changes
     script_hash = sha1(file("${path.module}/configure_bella_app.sh.tpl"))
+    retry       = local.retry
   }
 
   connection {
