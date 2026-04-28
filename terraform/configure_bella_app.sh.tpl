@@ -5,7 +5,7 @@ set -euo pipefail
 # configure_bella_app.sh.tpl  —  uploaded + executed by Terraform null_resource
 #
 # Terraform-injected variables (filled in by templatefile()):
-#   bella_baxter_url, bella_app_api_key, bella_app_private_key
+#   bella_baxter_url, bella_app_api_key
 #   bella_project, bella_env, app_repo_url, app_repo_branch
 #
 # ⚠️  ESCAPING RULES:
@@ -18,7 +18,6 @@ set -euo pipefail
 # ── Terraform-injected values (resolved at plan/apply time) ──────────────────
 BELLA_BAXTER_URL="${bella_baxter_url}"
 BELLA_APP_API_KEY="${bella_app_api_key}"
-BELLA_APP_PRIVATE_KEY="${bella_app_private_key}"
 APP_REPO_URL="${app_repo_url}"
 APP_REPO_BRANCH="${app_repo_branch}"
 
