@@ -289,6 +289,7 @@ so Terraform, AWS CLI, and the shell all see them automatically.
 | `TF_VAR_dokploy_admin_password` | Dokploy admin password |
 | `TF_VAR_bella_app_api_key` | Long-lived Bella API key for the EC2 container |
 
+
 The `terraform init` step uses a `sh -c` wrapper so the shell expands `${TF_STATE_BUCKET}` and
 `${TF_STATE_KEY}` **after** `bella run` has injected them — not at GitHub Actions parse time:
 

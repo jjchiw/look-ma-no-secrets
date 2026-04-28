@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# bump.sh  —  A script to configure the demo app on the EC2 instance.
 # ─────────────────────────────────────────────────────────────────────────────
 # configure_bella_app.sh.tpl  —  uploaded + executed by Terraform null_resource
 #
@@ -14,11 +13,17 @@ set -euo pipefail
 #   - $VAR    → plain shell variable (Terraform passes through untouched)
 #   - $(cmd)  → shell command substitution (Terraform passes through untouched)
 #   - DO NOT use $$ outside of $${...} — bash expands $$ as the current PID.
+
+
+
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Terraform-injected values (resolved at plan/apply time) ──────────────────
 BELLA_BAXTER_URL="${bella_baxter_url}"
 BELLA_APP_API_KEY="${bella_app_api_key}"
+
 APP_REPO_URL="${app_repo_url}"
 APP_REPO_BRANCH="${app_repo_branch}"
 
@@ -37,6 +42,9 @@ sudo npm install -g pm2
 # ── 3. Bella CLI ──────────────────────────────────────────────────────────────
 # Use GitHub's /releases/latest/download/ redirect — no version lookup needed.
 echo ">>> Installing Bella CLI (latest)..."
+
+
+
 curl -fsSL \
   "https://github.com/Cosmic-Chimps/bella-baxter-cli/releases/latest/download/cli-linux-x64" \
   -o /tmp/bella
@@ -68,6 +76,7 @@ npm install --omit=dev \
 
 # ── 6. pm2 ecosystem file ─────────────────────────────────────────────────────
 # Use an unquoted heredoc so the shell expands $VAR → actual values at write time.
+
 cat > /home/ubuntu/ecosystem.config.js << ECOSYSTEM
 module.exports = {
   apps: [

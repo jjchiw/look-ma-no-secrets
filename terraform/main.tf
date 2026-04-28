@@ -7,7 +7,7 @@ terraform {
     }
     bella = {
       source  = "cosmic-chimps/bella-baxter"
-      version = "= 0.1.1-preview.77"
+      version = "= 0.1.1-preview.74"
     }
     random = {
       source  = "hashicorp/random"
@@ -70,7 +70,7 @@ resource "random_password" "rds" {
 
 locals {
   db_password  = random_password.rds.result
-  database_url = "postgresql://${var.db_username}:${random_password.rds.result}@${aws_db_instance.app.address}:5432/${var.db_name}?sslmode=require"
+  database_url = "postgresql://${var.db_username}:${random_password.rds.result}@${aws_db_instance.app.address}:5432/${var.db_name}"
 
   # Compute deterministic sslip.io domains from the Elastic IP.
   # These are registered in Dokploy via domain.create so Traefik routes them.
@@ -471,8 +471,9 @@ resource "null_resource" "deploy_app" {
       app_repo_branch   = var.app_repo_branch
       bella_baxter_url  = var.bella_baxter_url
       bella_app_api_key = var.bella_app_api_key
-      bella_project     = var.bella_project
-      bella_env         = var.bella_env
+
+      bella_project = var.bella_project
+      bella_env     = var.bella_env
     })
     destination = "/home/ubuntu/configure_bella_app.sh"
   }

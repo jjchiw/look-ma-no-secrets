@@ -87,6 +87,13 @@ variable "bella_app_api_key" {
   sensitive   = true
 }
 
+
+
+
+
+
+
+
 variable "bella_provider_slug" {
   description = "Bella Baxter provider slug (e.g. 'my-vault'). The provider to use when storing secrets via Terraform."
   type        = string

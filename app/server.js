@@ -2,6 +2,7 @@
 
 const express = require('express');
 const { Pool } = require('pg');
+const { createBellaConfig } = require('@bella-baxter/sdk');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -9,14 +10,9 @@ const os = require('os');
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
-// ─── PostgreSQL ──────────────────────────────────────────────────────────────
-// DATABASE_URL is injected by `bella sdk run --` at container startup.
-// It is NEVER present in docker-compose.yml or any config file.
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  connectionTimeoutMillis: 5000,
-});
+// Pool is created in main() after Bella secrets are loaded into process.env.
+// Routes reference it via closure — safe because requests only arrive after startup.
+let pool;
 
 // ─── Auto-migrate on startup ─────────────────────────────────────────────────
 async function migrate() {
@@ -31,9 +27,9 @@ async function migrate() {
        VALUES ($1, $2, $3)`,
       [
         process.env.BELLA_ENV ?? 'unknown',
-        process.env.NODE_ENV  ?? 'development',
+        process.env.NODE_ENV ?? 'development',
         os.hostname(),
-      ]
+      ],
     );
 
     console.log('✅  Database migration complete.');
@@ -54,7 +50,7 @@ app.get('/health', (_req, res) => {
 app.get('/products', async (_req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, name, description, price, stock, created_at FROM products ORDER BY id'
+      'SELECT id, name, description, price, stock, created_at FROM products ORDER BY id',
     );
     res.json({
       ok: true,
@@ -70,7 +66,7 @@ app.get('/products', async (_req, res) => {
 app.get('/deploys', async (_req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, environment, node_env, hostname, started_at FROM deploys ORDER BY started_at DESC LIMIT 20'
+      'SELECT id, environment, node_env, hostname, started_at FROM deploys ORDER BY started_at DESC LIMIT 20',
     );
     res.json({ ok: true, deploys: result.rows });
   } catch (err) {
@@ -82,13 +78,13 @@ app.get('/deploys', async (_req, res) => {
 app.get('/db-test', async (_req, res) => {
   try {
     const result = await pool.query(
-      'SELECT now() AS server_time, current_database() AS db_name, version() AS pg_version'
+      'SELECT now() AS server_time, current_database() AS db_name, version() AS pg_version',
     );
     res.json({
       ok: true,
       server_time: result.rows[0].server_time,
-      db_name:     result.rows[0].db_name,
-      pg_version:  result.rows[0].pg_version,
+      db_name: result.rows[0].db_name,
+      pg_version: result.rows[0].pg_version,
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
@@ -97,8 +93,15 @@ app.get('/db-test', async (_req, res) => {
 
 // Shows which env vars are present — masks values to avoid exposing secrets in logs
 app.get('/secrets-demo', (_req, res) => {
-  const BELLA_VARS = ['BELLA_BAXTER_URL', 'BELLA_CLIENT_ID', 'BELLA_CLIENT_SECRET', 'BELLA_ENV', 'BELLA_PROJECT'];
-  const APP_VARS   = ['DATABASE_URL', 'RDS_PASSWORD', 'PORT', 'NODE_ENV'];
+  const BELLA_VARS = [
+    'BELLA_BAXTER_URL',
+    'BELLA_BAXTER_API_KEY',
+    'BELLA_BAXTER_PROJECT',
+    'BELLA_BAXTER_ENV',
+    'BELLA_ENV',
+    'BELLA_PROJECT',
+  ];
+  const APP_VARS = ['DATABASE_URL', 'RDS_PASSWORD', 'PORT', 'NODE_ENV'];
 
   const mask = (key) => {
     const val = process.env[key];
@@ -109,11 +112,11 @@ app.get('/secrets-demo', (_req, res) => {
 
   res.json({
     message: 'Look Ma! No secrets in Docker Compose!',
-    bella_vars: Object.fromEntries(BELLA_VARS.map(k => [k, mask(k)])),
-    app_vars:   Object.fromEntries(APP_VARS.map(k => [k, mask(k)])),
+    bella_vars: Object.fromEntries(BELLA_VARS.map((k) => [k, mask(k)])),
+    app_vars: Object.fromEntries(APP_VARS.map((k) => [k, mask(k)])),
     proof: {
-      'DATABASE_URL present':         !!process.env.DATABASE_URL,
-      'Injected by bella sdk run':        true,
+      'DATABASE_URL present': !!process.env.DATABASE_URL,
+      'Loaded by @bella-baxter/sdk': true,
       'Present in docker-compose.yml': false,
     },
   });
@@ -121,9 +124,18 @@ app.get('/secrets-demo', (_req, res) => {
 
 // ─── Start ───────────────────────────────────────────────────────────────────
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    console.warn('⚠️  DATABASE_URL is not set. Make sure "bella sdk run --" is the ENTRYPOINT.');
-  }
+  // Load all secrets from Bella Baxter and write them into process.env.
+  // BELLA_BAXTER_URL and BELLA_BAXTER_API_KEY are injected by `bella sdk run --`.
+  // Project and environment are auto-discovered from the API key via /api/v1/keys/me.
+  const bella = await createBellaConfig({});
+  bella.intoProcessEnv();
+
+  // DATABASE_URL is now in process.env — create the pool
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    connectionTimeoutMillis: 5000,
+  });
 
   await migrate();
 
